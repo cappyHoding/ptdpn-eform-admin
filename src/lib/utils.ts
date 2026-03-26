@@ -32,3 +32,32 @@ export function formatCurrency(amount: number): string {
         maximumFractionDigits: 0,
     }).format(amount);
 }
+
+export function formatDateOnly(dateStr?: string | null): string {
+    if (!dateStr) return '—';
+
+    // Coba parse langsung — handles ISO dan YYYY-MM-DD
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('id-ID', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+        });
+    }
+
+    // Fallback untuk format DD-MM-YYYY (dari VIDA OCR)
+    const parts = dateStr.split('-');
+    if (parts.length === 3 && parts[0].length === 2) {
+        const iso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        const d2 = new Date(iso);
+        if (!isNaN(d2.getTime())) {
+            return d2.toLocaleDateString('id-ID', {
+                day: '2-digit', month: 'short', year: 'numeric',
+            });
+        }
+    }
+
+    // Kembalikan apa adanya jika tidak bisa di-parse
+    return dateStr;
+}

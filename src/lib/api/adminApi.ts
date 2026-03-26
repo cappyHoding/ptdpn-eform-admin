@@ -21,7 +21,10 @@ export type AppStatus =
     | 'IN_REVIEW'
     | 'RECOMMENDED'
     | 'APPROVED'
-    | 'REJECTED';
+    | 'REJECTED'
+    | 'SIGNING'
+    | 'COMPLETED'
+    | 'EXPIRED';
 
 export type ProductType = 'SAVING' | 'DEPOSIT' | 'LOAN';
 
@@ -41,6 +44,15 @@ export interface ApplicationListItem {
     };
 }
 
+export interface SystemConfig {
+    config_key: string;
+    config_value: string;
+    description: string | null;
+    is_public: boolean;
+    updated_by: string | null;
+    updated_at: string;
+}
+
 export interface ApplicationDetail extends ApplicationListItem {
     ocr_result: any | null;
     liveness_result: any | null;
@@ -54,11 +66,16 @@ export interface ApplicationDetail extends ApplicationListItem {
 }
 
 export interface AuditLog {
-    id: string;
-    actor_type: string;
+    id: number;
+    actor_type: 'customer' | 'internal_user' | 'system';
     actor_id: string | null;
+    actor_username: string | null;
+    actor_role: string | null;
     action: string;
     description: string | null;
+    entity_type: string | null;
+    entity_id: string | null;
+    ip_address: string | null;
     created_at: string;
 }
 
@@ -69,18 +86,8 @@ export interface ApplicationNote {
     created_at: string;
 }
 
-export interface DashboardStats {
-    total_applications: number;
-    pending_review: number;
-    in_review: number;
-    approved_today: number;
-    rejected_today: number;
-    by_product: {
-        SAVING: number;
-        DEPOSIT: number;
-        LOAN: number;
-    };
-}
+export type DashboardStats = Record<string, number>;
+
 
 export interface AdminUser {
     id: string;
@@ -90,6 +97,13 @@ export interface AdminUser {
     is_active: boolean;
     created_at: string;
 }
+
+
+export const ROLE_ID_MAP: Record<AdminUser['role'], number> = {
+    admin: 1,
+    supervisor: 2,
+    operator: 3,
+};
 
 export interface ListApplicationsParams {
     page?: number;
@@ -112,8 +126,9 @@ export interface PaginatedResponse<T> {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export async function getDashboardStats(): Promise<DashboardStats> {
-    const res = await adminClient.get<ApiResponse<DashboardStats>>('/admin/dashboard/stats');
-    return res.data.data;
+    // Backend returns: { success, message, data: { stats: {...} } }
+    const res = await adminClient.get<ApiResponse<{ stats: DashboardStats }>>('/admin/dashboard/stats');
+    return res.data.data.stats;
 }
 
 // ─── Applications ─────────────────────────────────────────────────────────────
@@ -121,11 +136,24 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 export async function listApplications(
     params?: ListApplicationsParams
 ): Promise<PaginatedResponse<ApplicationListItem>> {
-    const res = await adminClient.get<ApiResponse<PaginatedResponse<ApplicationListItem>>>(
-        '/admin/applications',
-        { params }
-    );
-    return res.data.data;
+    const res = await adminClient.get<ApiResponse<{
+        applications: ApplicationListItem[]; // ← backend pakai 'applications', bukan 'data'
+        total: number;
+        page: number;
+        per_page: number;
+        total_pages: number;
+    }>>('/admin/applications', { params });
+
+    const raw = res.data.data;
+    return {
+        data: raw.applications, // ← normalize ke 'data' supaya konsisten
+        total: raw.total,
+        page: raw.page,
+        per_page: raw.per_page,
+        total_pages: raw.total_pages,
+    };
+
+
 }
 
 export async function getApplicationDetail(id: string): Promise<ApplicationDetail> {
@@ -147,28 +175,49 @@ export async function approveApplication(id: string, notes?: string): Promise<vo
     await adminClient.patch(`/admin/applications/${id}/approve`, { notes });
 }
 
-export async function rejectApplication(id: string, reason: string): Promise<void> {
-    await adminClient.patch(`/admin/applications/${id}/reject`, { reason });
+export async function rejectApplication(id: string, notes: string): Promise<void> {
+    await adminClient.patch(`/admin/applications/${id}/reject`, { notes }); // ← fix
 }
 
-export async function addNote(id: string, content: string): Promise<void> {
-    await adminClient.post(`/admin/applications/${id}/notes`, { content });
+export async function addNote(id: string, notes: string): Promise<void> {
+    await adminClient.post(`/admin/applications/${id}/notes`, { notes }); // ← fix
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
-export async function listUsers(): Promise<AdminUser[]> {
-    const res = await adminClient.get<ApiResponse<AdminUser[]>>('/admin/users');
-    return res.data.data;
+export async function listUsers(): Promise<PaginatedResponse<AdminUser>> {
+    const res = await adminClient.get<ApiResponse<{
+        users: AdminUser[];
+        total: number;
+        page: number;
+        per_page: number;
+        total_pages: number;
+    }>>('/admin/users');
+
+    const raw = res.data.data;
+    return {
+        data: raw.users, // ← normalize
+        total: raw.total,
+        page: raw.page,
+        per_page: raw.per_page,
+        total_pages: raw.total_pages,
+    };
 }
 
 export async function createUser(payload: {
-    name: string;
+    username: string;
+    full_name: string;
     email: string;
     password: string;
     role: AdminUser['role'];
 }): Promise<AdminUser> {
-    const res = await adminClient.post<ApiResponse<AdminUser>>('/admin/users', payload);
+    const res = await adminClient.post<ApiResponse<AdminUser>>('/admin/users', {
+        username: payload.username,
+        full_name: payload.full_name,
+        email: payload.email,
+        password: payload.password,
+        role_id: ROLE_ID_MAP[payload.role], // ← string 'operator' → number 3
+    });
     return res.data.data;
 }
 
@@ -186,23 +235,51 @@ export async function listAuditLogs(params?: {
     page?: number;
     per_page?: number;
     action?: string;
-    from?: string;
-    to?: string;
+    actor_id?: string;
 }): Promise<PaginatedResponse<AuditLog>> {
-    const res = await adminClient.get<ApiResponse<PaginatedResponse<AuditLog>>>(
-        '/admin/audit-logs',
-        { params }
-    );
-    return res.data.data;
+    const res = await adminClient.get<ApiResponse<{
+        logs: AuditLog[];
+        total: number;
+        page: number;
+        per_page: number;
+        total_pages: number;
+    }>>('/admin/audit-logs', { params });
+
+    const raw = res.data.data;
+    return {
+        data: raw.logs, // ← normalize
+        total: raw.total,
+        page: raw.page,
+        per_page: raw.per_page,
+        total_pages: raw.total_pages,
+    };
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-export async function listConfig(): Promise<Record<string, string>> {
-    const res = await adminClient.get<ApiResponse<Record<string, string>>>('/admin/config');
-    return res.data.data;
+export async function listConfig(): Promise<SystemConfig[]> {
+    const res = await adminClient.get<ApiResponse<{ configs: SystemConfig[] }>>('/admin/config');
+    return res.data.data.configs;
 }
 
 export async function updateConfig(key: string, value: string): Promise<void> {
     await adminClient.patch(`/admin/config/${key}`, { value });
+}
+
+export interface ReviewAction {
+    id: string;
+    application_id: string;
+    actor_id: string;
+    actor_username: string;
+    actor_role: 'admin' | 'supervisor' | 'operator';
+    action: 'OPENED' | 'RECOMMENDED' | 'APPROVED' | 'REJECTED' | 'NOTE_ADDED' | 'REOPENED';
+    notes: string | null;
+    created_at: string;
+}
+
+export async function getApplicationTimeline(id: string): Promise<ReviewAction[]> {
+    const res = await adminClient.get<ApiResponse<{ timeline: ReviewAction[] }>>(
+        `/admin/applications/${id}/timeline`
+    );
+    return res.data.data.timeline;
 }

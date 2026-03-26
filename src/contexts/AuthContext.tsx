@@ -1,17 +1,11 @@
-/**
- * AuthContext.tsx
- *
- * Manages admin JWT auth state.
- * Token disimpan di localStorage dengan key 'admin_token'.
- */
-
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminClient } from '@/lib/api/client';
 
 export interface AdminUser {
     id: string;
-    name: string;
+    username: string;  // ← tambah ini
+    full_name: string; // ← ganti dari 'name'
     email: string;
     role: 'admin' | 'supervisor' | 'operator';
 }
@@ -20,7 +14,7 @@ interface AuthContextValue {
     user: AdminUser | null;
     token: string | null;
     loading: boolean;
-    login: (email: string, password: string) => Promise<void>;
+    login: (username: string, password: string) => Promise<void>; // ← ganti email → username
     logout: () => void;
     isRole: (...roles: AdminUser['role'][]) => boolean;
 }
@@ -35,7 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
     const [loading, setLoading] = useState(true);
 
-    // Load user dari /me saat mount jika ada token
     useEffect(() => {
         if (!token) {
             setLoading(false);
@@ -44,19 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         adminClient.get<{ data: AdminUser }>('/admin/auth/me')
             .then((res) => setUser(res.data.data))
             .catch(() => {
-                // Token invalid / expired — clear
                 localStorage.removeItem(TOKEN_KEY);
                 setToken(null);
             })
             .finally(() => setLoading(false));
     }, [token]);
 
-    const login = async (email: string, password: string) => {
-        const res = await adminClient.post<{ data: { token: string; user: AdminUser } }>(
+    const login = async (username: string, password: string) => { // ← ganti parameter
+        const res = await adminClient.post<{ data: { access_token: string; user: AdminUser } }>(
             '/admin/auth/login',
-            { email, password }
+            { username, password } // ← kirim 'username', bukan 'email'
         );
-        const { token: newToken, user: newUser } = res.data.data;
+        const { access_token: newToken, user: newUser } = res.data.data; // ← 'access_token'
         localStorage.setItem(TOKEN_KEY, newToken);
         setToken(newToken);
         setUser(newUser);
