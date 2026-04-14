@@ -44,6 +44,18 @@ export interface ApplicationListItem {
     };
 }
 
+export interface ContractDocument {
+    id: string;
+    document_type: 'SAVING' | 'DEPOSIT' | 'LOAN';
+    sign_status: 'PENDING' | 'SIGNING' | 'COMPLETED' | 'FAILED' | 'EXPIRED';
+    sign_link: string | null;
+    sign_link_sent_at: string | null;
+    sign_deadline: string | null;
+    signed_at: string | null;
+    emeterai_applied_at: string | null;
+    generated_at: string;
+}
+
 export interface SystemConfig {
     config_key: string;
     config_value: string;
@@ -63,6 +75,7 @@ export interface ApplicationDetail extends ApplicationListItem {
     loan_detail: any | null;
     audit_logs: AuditLog[];
     notes: ApplicationNote[];
+    contract_documents: ContractDocument | null;
 }
 
 export interface AuditLog {

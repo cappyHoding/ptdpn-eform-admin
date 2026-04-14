@@ -24,7 +24,7 @@ import { formatDateTime, formatCurrency, formatDateOnly } from '@/lib/utils';
 import {
   ArrowLeft, CheckCircle2, XCircle, ThumbsUp, FolderOpen,
   MessageSquarePlus, Loader2, Shield, User, Phone, Mail,
-  MapPin, Banknote, Package, Calendar,
+  MapPin, Banknote, Package, Calendar, FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -497,6 +497,89 @@ export default function ApplicationDetailPage() {
               <InfoRow label="Disubmit" value={app.submitted_at ? formatDateTime(app.submitted_at) : null} />
             </CardContent>
           </Card>
+
+          {(status === 'SIGNING' || status === 'COMPLETED') && (
+            <Card className={
+              status === 'COMPLETED'
+                ? 'border-success/30 bg-success/5'
+                : 'border-primary/30 bg-primary/5'
+            }>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  {status === 'COMPLETED' ? 'Kontrak Ditandatangani' : 'Menunggu Tanda Tangan'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {app.contract_document ? (
+                  <>
+                    {/* Status tanda tangan */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Status TTD</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          app.contract_document.sign_status === 'COMPLETED'
+                            ? 'bg-success/10 text-success border-success/20'
+                            : app.contract_document.sign_status === 'EXPIRED' ||
+                              app.contract_document.sign_status === 'FAILED'
+                              ? 'bg-destructive/10 text-destructive border-destructive/20'
+                              : 'bg-primary/10 text-primary border-primary/20'
+                        }
+                      >
+                        {app.contract_document.sign_status === 'COMPLETED' && '✓ Sudah TTD'}
+                        {app.contract_document.sign_status === 'SIGNING' && '⏳ Link Terkirim'}
+                        {app.contract_document.sign_status === 'PENDING' && '🔄 Diproses'}
+                        {app.contract_document.sign_status === 'EXPIRED' && '✗ Kedaluwarsa'}
+                        {app.contract_document.sign_status === 'FAILED' && '✗ Gagal'}
+                      </Badge>
+                    </div>
+
+                    {/* eMeterai */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">eMeterai</span>
+                      <span className={`text-sm font-medium ${app.contract_document.emeterai_applied_at
+                        ? 'text-success'
+                        : 'text-muted-foreground'
+                        }`}>
+                        {app.contract_document.emeterai_applied_at ? '✓ Diterapkan' : '— Belum'}
+                      </span>
+                    </div>
+
+                    <InfoRow
+                      label="Kontrak Dibuat"
+                      value={formatDateTime(app.contract_document.generated_at)}
+                    />
+
+                    {app.contract_document.sign_link_sent_at && (
+                      <InfoRow
+                        label="Link TTD Dikirim"
+                        value={formatDateTime(app.contract_document.sign_link_sent_at)}
+                      />
+                    )}
+
+                    {app.contract_document.sign_deadline && (
+                      <InfoRow
+                        label="Batas TTD"
+                        value={formatDateTime(app.contract_document.sign_deadline)}
+                      />
+                    )}
+
+                    {app.contract_document.signed_at && (
+                      <InfoRow
+                        label="Ditandatangani"
+                        value={formatDateTime(app.contract_document.signed_at)}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Kontrak sedang diproses...
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
