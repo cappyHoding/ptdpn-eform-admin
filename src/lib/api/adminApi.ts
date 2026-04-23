@@ -169,6 +169,18 @@ export async function listApplications(
 
 }
 
+export function getKTPImageUrl(appId: string): string {
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+    const token = localStorage.getItem('admin_token') ?? '';
+    return `${base}/admin/applications/${appId}/images/ktp?token=${token}`;
+}
+
+export function getSelfieImageUrl(appId: string): string {
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+    const token = localStorage.getItem('admin_token') ?? '';
+    return `${base}/admin/applications/${appId}/images/selfie?token=${token}`;
+}
+
 export async function getApplicationDetail(id: string): Promise<ApplicationDetail> {
     const res = await adminClient.get<ApiResponse<ApplicationDetail>>(
         `/admin/applications/${id}`

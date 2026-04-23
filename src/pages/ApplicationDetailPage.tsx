@@ -18,6 +18,7 @@ import {
   openApplication, recommendApplication,
   approveApplication, rejectApplication, addNote,
   AppStatus, ProductType,
+  getKTPImageUrl, getSelfieImageUrl,
 } from '@/lib/api/adminApi';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDateTime, formatCurrency, formatDateOnly } from '@/lib/utils';
@@ -87,6 +88,58 @@ function InfoRow({ label, value }: { label: string; value?: string | null }) {
     <div className="flex justify-between py-2 text-sm border-b last:border-0">
       <span className="text-muted-foreground shrink-0">{label}</span>
       <span className="font-medium text-right ml-4 break-all">{value ?? '—'}</span>
+    </div>
+  );
+}
+
+function KTPImage({ appId }: { appId: string }) {
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const src = getKTPImageUrl(appId);
+
+  return (
+    <div className="aspect-[3/2] rounded-lg border overflow-hidden bg-muted">
+      {status === 'error' ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+          <FileText className="w-5 h-5 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground/50">Tidak tersedia</p>
+        </div>
+      ) : (
+        <a href={src} target="_blank" rel="noopener noreferrer">
+          <img
+            src={src}
+            alt="Foto KTP"
+            className="w-full h-full object-cover hover:opacity-90 transition-opacity cursor-zoom-in"
+            onLoad={() => setStatus('ok')}
+            onError={() => setStatus('error')}
+          />
+        </a>
+      )}
+    </div>
+  );
+}
+
+function SelfieImage({ appId }: { appId: string }) {
+  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
+  const src = getSelfieImageUrl(appId);
+
+  return (
+    <div className="aspect-square rounded-lg border overflow-hidden bg-muted">
+      {status === 'error' ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+          <User className="w-5 h-5 text-muted-foreground/50" />
+          <p className="text-xs text-muted-foreground/50">Tidak tersedia</p>
+        </div>
+      ) : (
+        <a href={src} target="_blank" rel="noopener noreferrer">
+          <img
+            src={src}
+            alt="Foto Selfie"
+            className="w-full h-full object-cover hover:opacity-90 transition-opacity cursor-zoom-in"
+            onLoad={() => setStatus('ok')}
+            onError={() => setStatus('error')}
+          />
+        </a>
+      )}
     </div>
   );
 }
@@ -390,6 +443,7 @@ export default function ApplicationDetailPage() {
         <div className="space-y-6">
 
           {/* KYC Verification — mirip referensi dengan progress bar */}
+          {/* KYC Verification Card */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -400,6 +454,23 @@ export default function ApplicationDetailPage() {
             <CardContent className="space-y-4">
               {app.liveness_result ? (
                 <>
+                  {/* ── Foto KTP & Selfie ───────────────────────── */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Foto KTP */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Foto KTP</p>
+                      <KTPImage appId={app.id} />
+                    </div>
+                    {/* Foto Selfie */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs text-muted-foreground font-medium">Foto Selfie</p>
+                      <SelfieImage appId={app.id} />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* ── Status liveness & face match ───────────── */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Liveness</span>
@@ -435,12 +506,12 @@ export default function ApplicationDetailPage() {
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">Risk Level</p>
                     <Badge
+                      variant="outline"
                       className={
                         app.liveness_result.liveness_status === 'PASSED'
                           ? 'bg-success/10 text-success border-success/20'
                           : 'bg-destructive/10 text-destructive border-destructive/20'
                       }
-                      variant="outline"
                     >
                       {app.liveness_result.liveness_status === 'PASSED' ? 'Low Risk' : 'High Risk'}
                     </Badge>
